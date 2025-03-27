@@ -10,6 +10,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "ChaosWheeledVehicleMovementComponent.h"
+#include "Components/ArrowComponent.h"
 
 #define LOCTEXT_NAMESPACE "VehiclePawn"
 
@@ -17,6 +18,10 @@ DEFINE_LOG_CATEGORY(LogTemplateVehicle);
 
 ATrailManiaPawn::ATrailManiaPawn()
 {
+	Arrow = CreateDefaultSubobject<UArrowComponent>(TEXT("Arrow"));
+	Arrow->SetupAttachment(GetMesh());
+	Arrow->SetRelativeLocation(FVector(0.0f, 0.0f, 200.0f));
+	
 	// construct the front camera boom
 	FrontSpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("Front Spring Arm"));
 	FrontSpringArm->SetupAttachment(GetMesh());
@@ -105,7 +110,35 @@ void ATrailManiaPawn::Tick(float Delta)
 	CameraYaw = FMath::FInterpTo(CameraYaw, 0.0f, Delta, 1.0f);
 
 	BackSpringArm->SetRelativeRotation(FRotator(0.0f, CameraYaw, 0.0f));
+
+	CheckNewGravity();
+
+	GetMesh()->SetPhysicsLinearVelocity(GetVelocity() + (gravity * 981 * Delta));
 }
+
+void ATrailManiaPawn::CheckNewGravity()
+{
+	FHitResult HitResult;
+	FVector Start = GetActorLocation();
+	FVector End = Start + gravity * 20;
+
+	FCollisionQueryParams TraceParams;
+	TraceParams.AddIgnoredActor(this);
+
+	if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, TraceParams))
+	{
+		AActor* HitActor = HitResult.GetActor();
+		if (HitActor != nullptr && HitActor->ActorHasTag("Gravity"))
+		{
+			gravity = -HitResult.ImpactNormal;
+			if (Arrow != nullptr)
+			{
+				Arrow->SetRelativeRotation(gravity.Rotation());
+			}
+		}
+	}
+}
+
 
 void ATrailManiaPawn::Steering(const FInputActionValue& Value)
 {
@@ -185,23 +218,32 @@ void ATrailManiaPawn::ToggleCamera(const FInputActionValue& Value)
 	BackCamera->SetActive(!bFrontCameraActive);
 }
 
-void ATrailManiaPawn::ResetVehicle(const FInputActionValue& Value)
+void ATrailManiaPawn::ResetVehicle()
 {
-	// reset to a location slightly above our current one
-	FVector ResetLocation = GetActorLocation() + FVector(0.0f, 0.0f, 50.0f);
-
-	// reset to our yaw. Ignore pitch and roll
-	FRotator ResetRotation = GetActorRotation();
-	ResetRotation.Pitch = 0.0f;
-	ResetRotation.Roll = 0.0f;
-	
-	// teleport the actor to the reset spot and reset physics
-	SetActorTransform(FTransform(ResetRotation, ResetLocation, FVector::OneVector), false, nullptr, ETeleportType::TeleportPhysics);
-
-	GetMesh()->SetPhysicsAngularVelocityInDegrees(FVector::ZeroVector);
-	GetMesh()->SetPhysicsLinearVelocity(FVector::ZeroVector);
-
+	if (CurrentCheckpoint != nullptr)
+	{
+		CurrentCheckpoint->RespawnPlayer(this);
+	}
+	else
+	{
+		FullResetVehicle();
+	}
 	UE_LOG(LogTemplateVehicle, Error, TEXT("Reset Vehicle"));
 }
+
+void ATrailManiaPawn::FullResetVehicle()
+{
+	// reset the vehicle to the start
+	SetActorTransform(FTransform::Identity, false, nullptr, ETeleportType::TeleportPhysics);
+	GetMesh()->SetPhysicsLinearVelocity(FVector::ZeroVector);
+	GetMesh()->SetPhysicsAngularVelocityInDegrees(FVector::ZeroVector);
+	gravity = FVector::DownVector;
+}
+
+void ATrailManiaPawn::SetCheckpoint(ACheckpoint* Checkpoint)
+{
+	CurrentCheckpoint = Checkpoint;
+}
+
 
 #undef LOCTEXT_NAMESPACE

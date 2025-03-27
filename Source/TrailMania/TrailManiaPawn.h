@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Checkpoint.h"
 #include "WheeledVehiclePawn.h"
 #include "TrailManiaPawn.generated.h"
 
@@ -94,7 +95,9 @@ public:
 	// End Actor interface
 
 protected:
-
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle")
+	UArrowComponent* Arrow;
+	
 	/** Handles steering input */
 	void Steering(const FInputActionValue& Value);
 
@@ -119,13 +122,22 @@ protected:
 	void ToggleCamera(const FInputActionValue& Value);
 
 	/** Handles reset vehicle input */
-	void ResetVehicle(const FInputActionValue& Value);
+	void ResetVehicle();
 
+	void FullResetVehicle();
+	
 	/** Called when the brake lights are turned on or off */
 	UFUNCTION(BlueprintImplementableEvent, Category="Vehicle")
 	void BrakeLights(bool bBraking);
 
+	void CheckNewGravity();
+
 public:
+	UPROPERTY()
+	FVector gravity = FVector::DownVector;
+
+	TObjectPtr<ACheckpoint> CurrentCheckpoint;
+	
 	/** Returns the front spring arm subobject */
 	FORCEINLINE USpringArmComponent* GetFrontSpringArm() const { return FrontSpringArm; }
 	/** Returns the front camera subobject */
@@ -136,4 +148,6 @@ public:
 	FORCEINLINE UCameraComponent* GetBackCamera() const { return BackCamera; }
 	/** Returns the cast Chaos Vehicle Movement subobject */
 	FORCEINLINE const TObjectPtr<UChaosWheeledVehicleMovementComponent>& GetChaosVehicleMovement() const { return ChaosVehicleMovement; }
+
+	void SetCheckpoint(ACheckpoint* Checkpoint);
 };
