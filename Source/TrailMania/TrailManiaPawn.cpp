@@ -10,6 +10,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "ChaosWheeledVehicleMovementComponent.h"
+#include "TrailManiaPlayerController.h"
 #include "Components/ArrowComponent.h"
 
 #define LOCTEXT_NAMESPACE "VehiclePawn"
@@ -90,6 +91,8 @@ void ATrailManiaPawn::SetupPlayerInputComponent(class UInputComponent* PlayerInp
 
 		// reset the vehicle 
 		EnhancedInputComponent->BindAction(ResetVehicleAction, ETriggerEvent::Triggered, this, &ATrailManiaPawn::ResetVehicle);
+		
+		EnhancedInputComponent->BindAction(FullResetVehicleAction, ETriggerEvent::Triggered, this, &ATrailManiaPawn::FullResetVehicle);
 	}
 	else
 	{
@@ -101,6 +104,11 @@ void ATrailManiaPawn::Tick(float Delta)
 {
 	Super::Tick(Delta);
 
+	if (bIsRacing)
+	{
+		CurrentTimer += Delta;
+	}
+
 	// add some angular damping if the vehicle is in midair
 	bool bMovingOnGround = ChaosVehicleMovement->IsMovingOnGround();
 	GetMesh()->SetAngularDamping(bMovingOnGround ? 0.0f : 3.0f);
@@ -109,18 +117,23 @@ void ATrailManiaPawn::Tick(float Delta)
 	float CameraYaw = BackSpringArm->GetRelativeRotation().Yaw;
 	CameraYaw = FMath::FInterpTo(CameraYaw, 0.0f, Delta, 1.0f);
 
-	BackSpringArm->SetRelativeRotation(FRotator(0.0f, CameraYaw, 0.0f));
+	BackSpringArm->SetRelativeRotation(FRotator(-10.0f, CameraYaw, 0.0f));
 
 	CheckNewGravity();
+	
+	if (Arrow != nullptr)
+	{
+		Arrow->SetWorldRotation(gravity.Rotation());
+	}
 
-	GetMesh()->SetPhysicsLinearVelocity(GetVelocity() + (gravity * 981 * Delta));
+	GetMesh()->SetPhysicsLinearVelocity(gravity * 981 * Delta, true);
 }
 
 void ATrailManiaPawn::CheckNewGravity()
 {
 	FHitResult HitResult;
-	FVector Start = GetActorLocation();
-	FVector End = Start + gravity * 20;
+	FVector Start = GetActorLocation() + GetActorUpVector() * 5;
+	FVector End = Start + -GetActorUpVector() * 50;
 
 	FCollisionQueryParams TraceParams;
 	TraceParams.AddIgnoredActor(this);
@@ -131,10 +144,6 @@ void ATrailManiaPawn::CheckNewGravity()
 		if (HitActor != nullptr && HitActor->ActorHasTag("Gravity"))
 		{
 			gravity = -HitResult.ImpactNormal;
-			if (Arrow != nullptr)
-			{
-				Arrow->SetRelativeRotation(gravity.Rotation());
-			}
 		}
 	}
 }
@@ -147,6 +156,8 @@ void ATrailManiaPawn::Steering(const FInputActionValue& Value)
 
 	// add the input
 	ChaosVehicleMovement->SetSteeringInput(SteeringValue);
+
+	bIsRacing = true;
 }
 
 void ATrailManiaPawn::Throttle(const FInputActionValue& Value)
@@ -156,6 +167,8 @@ void ATrailManiaPawn::Throttle(const FInputActionValue& Value)
 
 	// add the input
 	ChaosVehicleMovement->SetThrottleInput(ThrottleValue);
+
+	bIsRacing = true;
 }
 
 void ATrailManiaPawn::Brake(const FInputActionValue& Value)
@@ -165,12 +178,16 @@ void ATrailManiaPawn::Brake(const FInputActionValue& Value)
 
 	// add the input
 	ChaosVehicleMovement->SetBrakeInput(BreakValue);
+
+	bIsRacing = true;
 }
 
 void ATrailManiaPawn::StartBrake(const FInputActionValue& Value)
 {
 	// call the Blueprint hook for the break lights
 	BrakeLights(true);
+
+	bIsRacing = true;
 }
 
 void ATrailManiaPawn::StopBrake(const FInputActionValue& Value)
@@ -180,6 +197,8 @@ void ATrailManiaPawn::StopBrake(const FInputActionValue& Value)
 
 	// reset brake input to zero
 	ChaosVehicleMovement->SetBrakeInput(0.0f);
+
+	bIsRacing = true;
 }
 
 void ATrailManiaPawn::StartHandbrake(const FInputActionValue& Value)
@@ -189,6 +208,8 @@ void ATrailManiaPawn::StartHandbrake(const FInputActionValue& Value)
 
 	// call the Blueprint hook for the break lights
 	BrakeLights(true);
+
+	bIsRacing = true;
 }
 
 void ATrailManiaPawn::StopHandbrake(const FInputActionValue& Value)
@@ -198,6 +219,8 @@ void ATrailManiaPawn::StopHandbrake(const FInputActionValue& Value)
 
 	// call the Blueprint hook for the break lights
 	BrakeLights(false);
+
+	bIsRacing = true;
 }
 
 void ATrailManiaPawn::LookAround(const FInputActionValue& Value)
@@ -228,6 +251,8 @@ void ATrailManiaPawn::ResetVehicle()
 	{
 		FullResetVehicle();
 	}
+	
+	BackSpringArm->SetRelativeRotation(FRotator(-10.0f, BackSpringArm->GetRelativeRotation().Yaw, 0.0f));
 	UE_LOG(LogTemplateVehicle, Error, TEXT("Reset Vehicle"));
 }
 
@@ -238,11 +263,40 @@ void ATrailManiaPawn::FullResetVehicle()
 	GetMesh()->SetPhysicsLinearVelocity(FVector::ZeroVector);
 	GetMesh()->SetPhysicsAngularVelocityInDegrees(FVector::ZeroVector);
 	gravity = FVector::DownVector;
+	bIsRacing = false;
+	CurrentTimer = 0.0f;
+
+	for (ACheckpoint* Checkpoint : CheckpointsPassed)
+	{
+		if (Checkpoint == nullptr)
+		{
+			continue;
+		}
+		Checkpoint->ResetCheckpoint();
+	}
+	CheckpointsPassed.Empty();
+	CurrentCheckpoint = nullptr;
 }
 
 void ATrailManiaPawn::SetCheckpoint(ACheckpoint* Checkpoint)
 {
 	CurrentCheckpoint = Checkpoint;
+	CheckpointsPassed.Add(Checkpoint);
+}
+
+void ATrailManiaPawn::FinishRace()
+{
+	if (BestTime == NULL || CurrentTimer < BestTime)
+	{
+		if (Controller != nullptr && Controller->IsA(ATrailManiaPlayerController::StaticClass()))
+		{
+			ATrailManiaPlayerController* TrailManiaPlayerController = Cast<ATrailManiaPlayerController>(Controller);
+			BestTime = CurrentTimer;
+			TrailManiaPlayerController->SetNewRaceTime(BestTime);
+		}
+	}
+	
+	FullResetVehicle();
 }
 
 

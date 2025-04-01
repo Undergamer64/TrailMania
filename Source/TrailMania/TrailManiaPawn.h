@@ -76,6 +76,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input)
 	UInputAction* ResetVehicleAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input)
+	UInputAction* FullResetVehicleAction;
+
 	/** Keeps track of which camera is active */
 	bool bFrontCameraActive = false;
 
@@ -97,6 +100,8 @@ public:
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle")
 	UArrowComponent* Arrow;
+
+	bool bIsRacing = false;
 	
 	/** Handles steering input */
 	void Steering(const FInputActionValue& Value);
@@ -136,6 +141,11 @@ public:
 	UPROPERTY()
 	FVector gravity = FVector::DownVector;
 
+	float BestTime = NULL;
+	float CurrentTimer = 0.0f;
+
+	TArray<ACheckpoint*> CheckpointsPassed;
+	
 	TObjectPtr<ACheckpoint> CurrentCheckpoint;
 	
 	/** Returns the front spring arm subobject */
@@ -150,4 +160,6 @@ public:
 	FORCEINLINE const TObjectPtr<UChaosWheeledVehicleMovementComponent>& GetChaosVehicleMovement() const { return ChaosVehicleMovement; }
 
 	void SetCheckpoint(ACheckpoint* Checkpoint);
+
+	void FinishRace();
 };

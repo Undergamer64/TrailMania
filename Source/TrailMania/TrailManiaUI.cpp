@@ -17,3 +17,13 @@ void UTrailManiaUI::UpdateGear(int32 NewGear)
 	// call the Blueprint handler
 	OnGearUpdate(NewGear);
 }
+
+void UTrailManiaUI::UpdateTimer(float NewTime)
+{
+	OnTimeUpdate(NewTime);
+}
+
+void UTrailManiaUI::UpdateRaceTime(float NewRaceTime)
+{
+	OnRaceTimeUpdate(NewRaceTime);
+}

@@ -45,6 +45,7 @@ void ATrailManiaPlayerController::Tick(float Delta)
 	{
 		VehicleUI->UpdateSpeed(VehiclePawn->GetChaosVehicleMovement()->GetForwardSpeed());
 		VehicleUI->UpdateGear(VehiclePawn->GetChaosVehicleMovement()->GetCurrentGear());
+		VehicleUI->UpdateTimer(VehiclePawn->CurrentTimer);
 	}
 }
 
@@ -54,4 +55,10 @@ void ATrailManiaPlayerController::OnPossess(APawn* InPawn)
 
 	// get a pointer to the controlled pawn
 	VehiclePawn = CastChecked<ATrailManiaPawn>(InPawn);
+}
+
+void ATrailManiaPlayerController::SetNewRaceTime(float NewRaceTime)
+{
+	RaceTime = NewRaceTime;
+	VehicleUI->UpdateRaceTime(RaceTime);
 }

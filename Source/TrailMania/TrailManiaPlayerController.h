@@ -59,6 +59,10 @@ public:
 
 	// End Actor interface
 
+	void SetNewRaceTime(float NewRaceTime);
+	
+	float RaceTime = NULL;
+
 	// Begin PlayerController interface
 protected:
 

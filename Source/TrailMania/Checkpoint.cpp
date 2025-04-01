@@ -15,8 +15,9 @@ ACheckpoint::ACheckpoint()
 	SetRootComponent(BoxComponent);
 
 	BoxComponent->SetRelativeScale3D(FVector(0.1, 2, 2));
-	BoxComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	BoxComponent->OnComponentBeginOverlap.AddDynamic(this, &ACheckpoint::OnOverlapBegin);
+
+	ResetCheckpoint();
 }
 
 // Called when the game starts or when spawned
@@ -35,10 +36,33 @@ void ACheckpoint::Tick(float DeltaTime)
 
 void ACheckpoint::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
+	if (bIsEnd)
+	{
+		SetEnd(OtherActor);
+	}
+	else
+	{
+		SetCheckpoint(OtherActor);
+	}
+}
+
+void ACheckpoint::SetEnd(AActor* OtherActor)
+{
+	UE_LOG(LogTemplateVehicle, Error, TEXT("End !"));
+	if (OtherActor->IsA(ATrailManiaPawn::StaticClass()))
+	{
+		ATrailManiaPawn* Pawn = Cast<ATrailManiaPawn>(OtherActor);
+		Pawn->FinishRace();
+	}
+}
+
+void ACheckpoint::SetCheckpoint(AActor* OtherActor)
+{
 	UE_LOG(LogTemplateVehicle, Error, TEXT("Checkpoint !"));
 	if (OtherActor->IsA(ATrailManiaPawn::StaticClass()))
 	{
 		ATrailManiaPawn* Pawn = Cast<ATrailManiaPawn>(OtherActor);
+		if (Pawn == nullptr) return;
 		Pawn->SetCheckpoint(this);
 
 		RespawnTransform = Pawn->GetTransform();
@@ -59,4 +83,13 @@ void ACheckpoint::RespawnPlayer(AActor* Actor)
 		Pawn->GetMesh()->SetPhysicsLinearVelocity(RespawnVelocity);
 		Pawn->GetMesh()->SetPhysicsAngularVelocityInDegrees(FVector::ZeroVector);
 	}
+}
+
+void ACheckpoint::ResetCheckpoint()
+{
+	BoxComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+
+	RespawnGravity = FVector::DownVector;
+	RespawnTransform = FTransform::Identity;
+	RespawnVelocity = FVector::ZeroVector;
 }
