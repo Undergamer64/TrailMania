@@ -79,6 +79,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input)
 	UInputAction* FullResetVehicleAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input)
+	UInputAction* QuitAction;
+	
 	/** Keeps track of which camera is active */
 	bool bFrontCameraActive = false;
 
@@ -102,6 +105,8 @@ protected:
 	UArrowComponent* Arrow;
 
 	bool bIsRacing = false;
+
+	void Quit();
 	
 	/** Handles steering input */
 	void Steering(const FInputActionValue& Value);
@@ -136,8 +141,17 @@ protected:
 	void BrakeLights(bool bBraking);
 
 	void CheckNewGravity();
-
+	
 public:
+	UPROPERTY(EditAnywhere)
+	float GravityScale = 1;
+
+	UPROPERTY()
+	bool bIsCentralGravity = false;
+
+	UPROPERTY()
+	FVector CentralGravity = FVector::ZeroVector;
+	
 	UPROPERTY()
 	FVector gravity = FVector::DownVector;
 

@@ -12,6 +12,7 @@
 #include "ChaosWheeledVehicleMovementComponent.h"
 #include "TrailManiaPlayerController.h"
 #include "Components/ArrowComponent.h"
+#include "Kismet/KismetSystemLibrary.h"
 
 #define LOCTEXT_NAMESPACE "VehiclePawn"
 
@@ -56,8 +57,7 @@ ATrailManiaPawn::ATrailManiaPawn()
 	GetMesh()->SetCollisionProfileName(FName("Vehicle"));
 
 	// get the Chaos Wheeled movement component
-	ChaosVehicleMovement = CastChecked<UChaosWheeledVehicleMovementComponent>(GetVehicleMovement());
-
+	ChaosVehicleMovement = CastChecked<UChaosWheeledVehicleMovementComponent>(GetVehicleMovement());;
 }
 
 void ATrailManiaPawn::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
@@ -93,11 +93,18 @@ void ATrailManiaPawn::SetupPlayerInputComponent(class UInputComponent* PlayerInp
 		EnhancedInputComponent->BindAction(ResetVehicleAction, ETriggerEvent::Triggered, this, &ATrailManiaPawn::ResetVehicle);
 		
 		EnhancedInputComponent->BindAction(FullResetVehicleAction, ETriggerEvent::Triggered, this, &ATrailManiaPawn::FullResetVehicle);
+		
+		EnhancedInputComponent->BindAction(QuitAction, ETriggerEvent::Triggered, this, &ATrailManiaPawn::Quit);
 	}
 	else
 	{
 		UE_LOG(LogTemplateVehicle, Error, TEXT("'%s' Failed to find an Enhanced Input component! This template is built to use the Enhanced Input system. If you intend to use the legacy system, then you will need to update this C++ file."), *GetNameSafe(this));
 	}
+}
+
+void ATrailManiaPawn::Quit()
+{
+	UKismetSystemLibrary::QuitGame(this, nullptr, EQuitPreference::Quit, true);
 }
 
 void ATrailManiaPawn::Tick(float Delta)
@@ -115,7 +122,7 @@ void ATrailManiaPawn::Tick(float Delta)
 
 	// realign the camera yaw to face front
 	float CameraYaw = BackSpringArm->GetRelativeRotation().Yaw;
-	CameraYaw = FMath::FInterpTo(CameraYaw, 0.0f, Delta, 1.0f);
+	CameraYaw = FMath::FInterpTo(CameraYaw, 0.0f, Delta, 0.5f);
 
 	BackSpringArm->SetRelativeRotation(FRotator(-10.0f, CameraYaw, 0.0f));
 
@@ -125,15 +132,22 @@ void ATrailManiaPawn::Tick(float Delta)
 	{
 		Arrow->SetWorldRotation(gravity.Rotation());
 	}
-
-	GetMesh()->SetPhysicsLinearVelocity(gravity * 981 * Delta, true);
+	
+	if (bIsCentralGravity)
+	{
+		GetMesh()->SetPhysicsLinearVelocity((CentralGravity - GetActorLocation()).GetSafeNormal() * 4 * (GravityScale * 981) * Delta, true);
+	}
+	else
+	{
+		GetMesh()->SetPhysicsLinearVelocity(gravity * (GravityScale * 981) * Delta, true);
+	}
 }
 
 void ATrailManiaPawn::CheckNewGravity()
 {
 	FHitResult HitResult;
 	FVector Start = GetActorLocation() + GetActorUpVector() * 5;
-	FVector End = Start + -GetActorUpVector() * 50;
+	FVector End = Start + -GetActorUpVector() * 200;
 
 	FCollisionQueryParams TraceParams;
 	TraceParams.AddIgnoredActor(this);
@@ -141,9 +155,21 @@ void ATrailManiaPawn::CheckNewGravity()
 	if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, TraceParams))
 	{
 		AActor* HitActor = HitResult.GetActor();
-		if (HitActor != nullptr && HitActor->ActorHasTag("Gravity"))
+
+		if (HitActor == nullptr)
 		{
+			return;
+		}
+		
+		if (HitActor->ActorHasTag("Gravity"))
+		{
+			bIsCentralGravity = false;
 			gravity = -HitResult.ImpactNormal;
+		}
+		else if (HitActor->ActorHasTag("Gravity2"))
+		{
+			bIsCentralGravity = true;
+			CentralGravity = HitActor->GetActorLocation();
 		}
 	}
 }
@@ -263,6 +289,8 @@ void ATrailManiaPawn::FullResetVehicle()
 	GetMesh()->SetPhysicsLinearVelocity(FVector::ZeroVector);
 	GetMesh()->SetPhysicsAngularVelocityInDegrees(FVector::ZeroVector);
 	gravity = FVector::DownVector;
+	CentralGravity = FVector::Zero();
+	bIsCentralGravity = false;
 	bIsRacing = false;
 	CurrentTimer = 0.0f;
 

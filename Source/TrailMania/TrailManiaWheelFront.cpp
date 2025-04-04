@@ -7,5 +7,5 @@ UTrailManiaWheelFront::UTrailManiaWheelFront()
 {
 	AxleType = EAxleType::Front;
 	bAffectedBySteering = true;
-	MaxSteerAngle = 40.f;
+	MaxSteerAngle = 50.f;
 }
